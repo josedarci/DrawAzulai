@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            [...tooltipTriggerList].map(el => new bootstrap.Tooltip(el));
+        });
+    </script>
+    <title>Mini Excalidraw com Paleta de Cores</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: sans-serif;
+            background: #f0f0f0;
+        }
+
+        #toolbar {
+            background: #fff;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            border-bottom: 1px solid #ccc;
+            align-items: center;
+        }
+
+        button {
+            padding: 5px 10px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+        }
+
+        button.active {
+            background: #007bff;
+            color: white;
+        }
+
+        canvas {
+            display: block;
+            background: #fff;
+            cursor: crosshair;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+            pointer-events: none;
+            display: none;
+        }
+
+        .color-palette {
+            display: flex;
+            gap: 5px;
+            margin-left: 10px;
+        }
+
+        .color-option {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .color-option.selected {
+            border-color: #000;
+        }
+
+        #color-picker-container {
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #pencil-btn.active ~ #color-picker-container {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+<div id="toolbar" class="p-2 bg-light border-bottom d-flex flex-wrap gap-2">
+    <div class="btn-group flex-wrap" role="group">
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('select')" id="select-btn" data-bs-toggle="tooltip" title="Selecionar elementos no canvas">?? Selecionar</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('move')" id="move-btn" data-bs-toggle="tooltip" title="Mover, redimensionar ou rotacionar elementos">??? Mover</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('draw')" data-bs-toggle="tooltip" title="Desenhar linhas pretas com caneta simples">?? Desenhar</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('pencil')" id="pencil-btn" data-bs-toggle="tooltip" title="Desenhar com lápis colorido usando paleta">?? Lápis</button>
+
+    </div>
+
+    <div id="color-picker-container" class="d-flex align-items-center ms-2">
+        <div class="color-palette d-flex gap-1">
+            <div class="color-option selected" style="background-color: #000000;" onclick="setPencilColor('#000000')"></div>
+            <div class="color-option" style="background-color: #ff0000;" onclick="setPencilColor('#ff0000')"></div>
+            <div class="color-option" style="background-color: #00ff00;" onclick="setPencilColor('#00ff00')"></div>
+            <div class="color-option" style="background-color: #0000ff;" onclick="setPencilColor('#0000ff')"></div>
+            <div class="color-option" style="background-color: #ff00ff;" onclick="setPencilColor('#ff00ff')"></div>
+            <div class="color-option" style="background-color: #ffff00;" onclick="setPencilColor('#ffff00')"></div>
+            <div class="color-option" style="background-color: #808080;" onclick="setPencilColor('#808080')"></div>
+        </div>
+    </div>
+
+    <div class="btn-group flex-wrap ms-2" role="group">
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('rect')">? Retângulo</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('circle')">? Círculo</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('arrow')">?? Seta</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('text')">?? Texto</button>
+        <button class="btn btn-outline-warning btn-sm" onclick="setMode('erase')">?? Borracha</button>
+    </div>
+
+    <div class="btn-group flex-wrap ms-2" role="group">
+        <button class="btn btn-outline-danger btn-sm" onclick="clearCanvas()">??? Limpar Tela</button>
+        <button class="btn btn-outline-success btn-sm" onclick="document.getElementById('imageInput').click()" data-bs-toggle="tooltip" title="Inserir imagem no canvas">??? Inserir Imagem</button>
+        <input type="file" id="imageInput" accept="image/png, image/jpeg" style="display:none" onchange="handleImageUpload(event)">
+        <button class="btn btn-outline-info btn-sm" onclick="exportCanvas()" data-bs-toggle="tooltip" title="Exportar desenho como imagem PNG">?? Exportar PNG</button>
+        <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()">? Excluir Selecionados</button>
+
+
+    </div>
+</div>
+
+
+<canvas id="canvas" width="1600" height="1200"></canvas>
+<div id="selection-box" class="selection-box"></div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const selectionBox = document.getElementById('selection-box');
+    let mode = 'draw';
+    let selectedElements = [];
+    let selectedElement = null;
+    let selectedHandle = null;
+    let drawing = false;
+    let startX, startY;
+    let offsetX = 0, offsetY = 0;
+    let isDragging = false;
+    let isSelecting = false;
+    let currentPoints = [];
+    let elements = [];
+    const HANDLE_RADIUS = 6;
+    let pencilColor = '#000000';
+    let pencilWidth = 3.5;
+
+    function setPencilColor(color) {
+        pencilColor = color;
+        document.querySelectorAll('.color-option').forEach(opt => {
+            opt.classList.remove('selected');
+        });
+        event.target.classList.add('selected');
+    }
+
+    function isNear(x1, y1, x2, y2) {
+        return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2) < HANDLE_RADIUS;
+    }
+
+    function isNearLine(x, y, x1, y1, x2, y2) {
+        const distance = (x, y, x1, y1, x2, y2) => {
+            const A = x - x1;
+            const B = y - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            const dot = A * C + B * D;
+            const len_sq = C * C + D * D;
+            let param = -1;
+            if (len_sq !== 0) param = dot / len_sq;
+            let xx, yy;
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+            const dx = x - xx;
+            const dy = y - yy;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+        return distance(x, y, x1, y1, x2, y2) < 10;
+    }
+
+    function getArrowCenter(arrow) {
+        return {
+            x: (arrow.x1 + arrow.x2) / 2,
+            y: (arrow.y1 + arrow.y2) / 2
+        };
+    }
+
+    function drawArrow(x1, y1, x2, y2) {
+        const headLength = 15;
+        const angle = Math.atan2(y2 - y1, x2 - x1);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x2, y2);
+        ctx.lineTo(
+            x2 - headLength * Math.cos(angle - Math.PI / 6),
+            y2 - headLength * Math.sin(angle - Math.PI / 6)
+        );
+        ctx.lineTo(
+            x2 - headLength * Math.cos(angle + Math.PI / 6),
+            y2 - headLength * Math.sin(angle + Math.PI / 6)
+        );
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    function drawSmoothLine(points, width, color) {
+        if (points.length < 2) return;
+
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+
+        for (let i = 1; i < points.length - 1; i++) {
+            const xc = (points[i].x + points[i + 1].x) / 2;
+            const yc = (points[i].y + points[i + 1].y) / 2;
+            ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+        }
+
+        if (points.length > 1) {
+            ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+        }
+
+        ctx.lineWidth = width;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+    }
+
+    function isElementInSelection(element, x1, y1, x2, y2) {
+        const minX = Math.min(x1, x2);
+        const maxX = Math.max(x1, x2);
+        const minY = Math.min(y1, y2);
+        const maxY = Math.max(y1, y2);
+
+        if (element.type === 'rect') {
+            return (
+                element.x >= minX &&
+                element.x + element.w <= maxX &&
+                element.y >= minY &&
+                element.y + element.h <= maxY
+            );
+        } else if (element.type === 'circle') {
+            return (
+                element.x - element.r >= minX &&
+                element.x + element.r <= maxX &&
+                element.y - element.r >= minY &&
+                element.y + element.r <= maxY
+            );
+        } else if (element.type === 'image') {
+            return (
+                element.x >= minX &&
+                element.x + element.width <= maxX &&
+                element.y >= minY &&
+                element.y + element.height <= maxY
+            );
+        } else if (element.type === 'arrow') {
+            return (
+                Math.min(element.x1, element.x2) >= minX &&
+                Math.max(element.x1, element.x2) <= maxX &&
+                Math.min(element.y1, element.y2) >= minY &&
+                Math.max(element.y1, element.y2) <= maxY
+            );
+        } else if (element.type === 'text') {
+            return (
+                element.x >= minX &&
+                element.x <= maxX &&
+                element.y >= minY &&
+                element.y <= maxY
+            );
+        } else if (element.type === 'freehand') {
+            return element.points.every(point =>
+                point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
+            );
+        }
+        return false;
+    }
+
+    function redrawCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        elements.forEach(el => {
+            ctx.save();
+
+            if (selectedElements.includes(el)) {
+                ctx.strokeStyle = '#007bff';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+
+                if (el.type === 'rect') {
+                    ctx.strokeRect(el.x - 3, el.y - 3, el.w + 6, el.h + 6);
+                } else if (el.type === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(el.x, el.y, el.r + 3, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (el.type === 'image') {
+                    ctx.strokeRect(el.x - 3, el.y - 3, el.width + 6, el.height + 6);
+                } else if (el.type === 'arrow') {
+                    const padding = 5;
+                    const minX = Math.min(el.x1, el.x2) - padding;
+                    const maxX = Math.max(el.x1, el.x2) + padding;
+                    const minY = Math.min(el.y1, el.y2) - padding;
+                    const maxY = Math.max(el.y1, el.y2) + padding;
+                    ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+                } else if (el.type === 'text') {
+                    ctx.strokeRect(el.x - 3, el.y - 16, ctx.measureText(el.text).width + 6, 20);
+                } else if (el.type === 'freehand') {
+                    const minX = Math.min(...el.points.map(p => p.x)) - 3;
+                    const maxX = Math.max(...el.points.map(p => p.x)) + 3;
+                    const minY = Math.min(...el.points.map(p => p.y)) - 3;
+                    const maxY = Math.max(...el.points.map(p => p.y)) + 3;
+                    ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+                }
+
+                ctx.setLineDash([]);
+            }
+
+            if (el.type === 'freehand') {
+                drawSmoothLine(el.points, el.width, el.color);
+            } else if (el.type === 'rect') {
+                ctx.strokeRect(el.x, el.y, el.w, el.h);
+            } else if (el.type === 'circle') {
+                ctx.beginPath();
+                ctx.arc(el.x, el.y, el.r, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (el.type === 'arrow') {
+                drawArrow(el.x1, el.y1, el.x2, el.y2);
+            } else if (el.type === 'text') {
+                ctx.font = '16px Arial';
+                ctx.fillText(el.text, el.x, el.y);
+            } else if (el.type === 'image' && el.img) {
+                if (el.rotation) {
+                    const centerX = el.x + el.width / 2;
+                    const centerY = el.y + el.height / 2;
+                    ctx.translate(centerX, centerY);
+                    ctx.rotate(el.rotation);
+                    ctx.translate(-centerX, -centerY);
+                }
+                ctx.drawImage(el.img, el.x, el.y, el.width, el.height);
+            }
+
+            ctx.restore();
+        });
+
+        if (mode === 'move' && selectedElement) {
+            if (selectedElement.type === 'arrow') {
+                const center = getArrowCenter(selectedElement);
+                const rotateHandle = { x: center.x, y: center.y - 30 };
+
+                ctx.beginPath();
+                ctx.arc(selectedElement.x1, selectedElement.y1, HANDLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(selectedElement.x2, selectedElement.y2, HANDLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(rotateHandle.x, rotateHandle.y, HANDLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = 'blue';
+                ctx.fill();
+            }
+            else if (selectedElement.type === 'image') {
+                const centerX = selectedElement.x + selectedElement.width / 2;
+                const centerY = selectedElement.y + selectedElement.height / 2;
+
+                ctx.beginPath();
+                ctx.arc(selectedElement.x, selectedElement.y, HANDLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(selectedElement.x + selectedElement.width, selectedElement.y + selectedElement.height, HANDLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(centerX, selectedElement.y - 30, HANDLE_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = 'blue';
+                ctx.fill();
+            }
+        }
+    }
+
+    function setMode(newMode) {
+        mode = newMode;
+        selectedElement = null;
+        selectedHandle = null;
+        isDragging = false;
+        isSelecting = false;
+
+        if (mode === 'select') {
+            canvas.style.cursor = 'pointer';
+        } else if (mode === 'move') {
+            canvas.style.cursor = 'move';
+        } else if (mode === 'erase') {
+            canvas.style.cursor = 'pointer';
+        } else {
+            canvas.style.cursor = 'crosshair';
+        }
+
+        document.querySelectorAll('#toolbar button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        if (mode === 'select') {
+            document.getElementById('select-btn').classList.add('active');
+        } else if (mode === 'move') {
+            document.getElementById('move-btn').classList.add('active');
+        } else if (mode === 'pencil') {
+            document.getElementById('pencil-btn').classList.add('active');
+        }
+
+        redrawCanvas();
+    }
+
+    function clearCanvas() {
+        elements = [];
+        selectedElements = [];
+        redrawCanvas();
+    }
+
+    function deleteSelected() {
+        if (selectedElements.length > 0) {
+            elements = elements.filter(el => !selectedElements.includes(el));
+            selectedElements = [];
+            redrawCanvas();
+        } else if (selectedElement) {
+            elements = elements.filter(el => el !== selectedElement);
+            selectedElement = null;
+            redrawCanvas();
+        }
+    }
+
+    function exportCanvas() {
+        const link = document.createElement('a');
+        link.download = 'desenho.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function handleImageUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = function() {
+                const newImage = {
+                    type: 'image',
+                    img: img,
+                    x: 100,
+                    y: 100,
+                    width: img.width / 2,
+                    height: img.height / 2,
+                    rotation: 0
+                };
+                elements.push(newImage);
+                selectedElements = [newImage];
+                redrawCanvas();
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        const x = e.offsetX;
+        const y = e.offsetY;
+        startX = x;
+        startY = y;
+        drawing = false;
+
+        if (mode === 'text') {
+            const text = prompt('Digite o texto:');
+            if (text) {
+                elements.push({ type: 'text', x, y, text });
+                redrawCanvas();
+            }
+            return;
+        }
+
+        if (mode === 'erase') {
+            for (let i = elements.length - 1; i >= 0; i--) {
+                const el = elements[i];
+                if (el.type === 'image' &&
+                    x >= el.x && x <= el.x + el.width &&
+                    y >= el.y && y <= el.y + el.height) {
+                    elements.splice(i, 1);
+                    break;
+                } else if (el.type === 'rect' &&
+                    x >= el.x && x <= el.x + el.w &&
+                    y >= el.y && y <= el.y + el.h) {
+                    elements.splice(i, 1);
+                    break;
+                } else if (el.type === 'circle' &&
+                    Math.sqrt((x - el.x) ** 2 + (y - el.y) ** 2) <= el.r) {
+                    elements.splice(i, 1);
+                    break;
+                } else if (el.type === 'arrow' && isNearLine(x, y, el.x1, el.y1, el.x2, el.y2)) {
+                    elements.splice(i, 1);
+                    break;
+                } else if (el.type === 'freehand') {
+                    for (let j = 0; j < el.points.length; j++) {
+                        if (isNear(x, y, el.points[j].x, el.points[j].y)) {
+                            elements.splice(i, 1);
+                            break;
+                        }
+                    }
+                } else if (el.type === 'text' && isNear(x, y, el.x, el.y)) {
+                    elements.splice(i, 1);
+                    break;
+                }
+            }
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'draw' || mode === 'pencil') {
+            currentPoints = [{ x, y }];
+            drawing = true;
+            return;
+        }
+
+        if (mode === 'arrow' || mode === 'rect' || mode === 'circle') {
+            drawing = true;
+            return;
+        }
+
+        if (mode === 'select') {
+            let clickedOnSelected = false;
+            for (let i = elements.length - 1; i >= 0; i--) {
+                const el = elements[i];
+
+                if (selectedElements.includes(el)) {
+                    if (el.type === 'rect' && x >= el.x && x <= el.x + el.w && y >= el.y && y <= el.y + el.h) {
+                        clickedOnSelected = true;
+                        break;
+                    } else if (el.type === 'circle' && Math.sqrt((x - el.x) ** 2 + (y - el.y) ** 2) <= el.r) {
+                        clickedOnSelected = true;
+                        break;
+                    } else if (el.type === 'image' && x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height) {
+                        clickedOnSelected = true;
+                        break;
+                    } else if (el.type === 'arrow' && isNearLine(x, y, el.x1, el.y1, el.x2, el.y2)) {
+                        clickedOnSelected = true;
+                        break;
+                    } else if (el.type === 'text' && isNear(x, y, el.x, el.y)) {
+                        clickedOnSelected = true;
+                        break;
+                    } else if (el.type === 'freehand') {
+                        for (let j = 0; j < el.points.length; j++) {
+                            if (isNear(x, y, el.points[j].x, el.points[j].y)) {
+                                clickedOnSelected = true;
+                                break;
+                            }
+                        }
+                        if (clickedOnSelected) break;
+                    }
+                }
+            }
+
+            if (!clickedOnSelected) {
+                selectedElements = [];
+                isSelecting = true;
+                selectionBox.style.display = 'block';
+                selectionBox.style.left = `${x}px`;
+                selectionBox.style.top = `${y}px`;
+                selectionBox.style.width = '0px';
+                selectionBox.style.height = '0px';
+            } else {
+                isDragging = true;
+                offsetX = x;
+                offsetY = y;
+            }
+            return;
+        }
+
+        if (mode === 'move') {
+            selectedHandle = null;
+            selectedElement = null;
+
+            for (let i = elements.length - 1; i >= 0; i--) {
+                const el = elements[i];
+
+                if (el.type === 'image') {
+                    const centerX = el.x + el.width / 2;
+                    const centerY = el.y + el.height / 2;
+
+                    if (isNear(x, y, centerX, el.y - 30)) {
+                        selectedElement = el;
+                        selectedHandle = 'rotate';
+                        isDragging = true;
+                        return;
+                    }
+                    else if (isNear(x, y, el.x, el.y)) {
+                        selectedElement = el;
+                        selectedHandle = 'resize-tl';
+                        isDragging = true;
+                        return;
+                    }
+                    else if (isNear(x, y, el.x + el.width, el.y + el.height)) {
+                        selectedElement = el;
+                        selectedHandle = 'resize-br';
+                        isDragging = true;
+                        return;
+                    }
+                    else if (x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height) {
+                        selectedElement = el;
+                        selectedHandle = 'move';
+                        offsetX = x - el.x;
+                        offsetY = y - el.y;
+                        isDragging = true;
+                        return;
+                    }
+                }
+                else if (el.type === 'arrow') {
+                    const center = getArrowCenter(el);
+                    const rotateHandle = { x: center.x, y: center.y - 30 };
+
+                    if (isNear(x, y, el.x1, el.y1)) {
+                        selectedElement = el;
+                        selectedHandle = 'start';
+                        isDragging = true;
+                        return;
+                    }
+                    else if (isNear(x, y, el.x2, el.y2)) {
+                        selectedElement = el;
+                        selectedHandle = 'end';
+                        isDragging = true;
+                        return;
+                    }
+                    else if (isNear(x, y, rotateHandle.x, rotateHandle.y)) {
+                        selectedElement = el;
+                        selectedHandle = 'rotate';
+                        isDragging = true;
+                        return;
+                    }
+                    else if (isNearLine(x, y, el.x1, el.y1, el.x2, el.y2)) {
+                        selectedElement = el;
+                        selectedHandle = 'move';
+                        offsetX = x - center.x;
+                        offsetY = y - center.y;
+                        isDragging = true;
+                        return;
+                    }
+                }
+                else if (el.type === 'rect' &&
+                    x >= el.x && x <= el.x + el.w &&
+                    y >= el.y && y <= el.y + el.h) {
+                    selectedElement = el;
+                    selectedHandle = 'move';
+                    offsetX = x - el.x;
+                    offsetY = y - el.y;
+                    isDragging = true;
+                    return;
+                }
+                else if (el.type === 'circle' &&
+                    Math.sqrt((x - el.x) ** 2 + (y - el.y) ** 2) <= el.r) {
+                    selectedElement = el;
+                    selectedHandle = 'move';
+                    offsetX = x - el.x;
+                    offsetY = y - el.y;
+                    isDragging = true;
+                    return;
+                }
+                else if (el.type === 'text' && isNear(x, y, el.x, el.y)) {
+                    selectedElement = el;
+                    selectedHandle = 'move';
+                    offsetX = x - el.x;
+                    offsetY = y - el.y;
+                    isDragging = true;
+                    return;
+                }
+            }
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        const x = e.offsetX;
+        const y = e.offsetY;
+
+        if (mode === 'draw') {
+            if (!drawing) return;
+            currentPoints.push({ x, y });
+            redrawCanvas();
+            drawSmoothLine(currentPoints, 2, 'black');
+            return;
+        }
+
+        if (mode === 'pencil') {
+            if (!drawing) return;
+            currentPoints.push({ x, y });
+            redrawCanvas();
+            drawSmoothLine(currentPoints, pencilWidth, pencilColor);
+            return;
+        }
+
+        if ((mode === 'rect' || mode === 'circle') && drawing) {
+            redrawCanvas();
+            if (mode === 'rect') {
+                ctx.strokeRect(startX, startY, x - startX, y - startY);
+            } else if (mode === 'circle') {
+                const r = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+                ctx.beginPath();
+                ctx.arc(startX, startY, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            return;
+        }
+
+        if (mode === 'arrow' && drawing) {
+            redrawCanvas();
+            drawArrow(startX, startY, x, y);
+            return;
+        }
+
+        if (mode === 'select' && isSelecting) {
+            const left = Math.min(startX, x);
+            const top = Math.min(startY, y);
+            const width = Math.abs(x - startX);
+            const height = Math.abs(y - startY);
+
+            selectionBox.style.left = `${left}px`;
+            selectionBox.style.top = `${top}px`;
+            selectionBox.style.width = `${width}px`;
+            selectionBox.style.height = `${height}px`;
+            return;
+        }
+
+        if (mode === 'select' && isDragging && selectedElements.length > 0) {
+            const dx = x - offsetX;
+            const dy = y - offsetY;
+
+            selectedElements.forEach(el => {
+                if (el.type === 'rect' || el.type === 'circle' || el.type === 'text' || el.type === 'image') {
+                    el.x += dx;
+                    el.y += dy;
+                } else if (el.type === 'arrow') {
+                    el.x1 += dx;
+                    el.y1 += dy;
+                    el.x2 += dx;
+                    el.y2 += dy;
+                } else if (el.type === 'freehand') {
+                    el.points.forEach(point => {
+                        point.x += dx;
+                        point.y += dy;
+                    });
+                }
+            });
+
+            offsetX = x;
+            offsetY = y;
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'move' && isDragging && selectedElement) {
+            const dx = x - offsetX;
+            const dy = y - offsetY;
+
+            if (selectedElement.type === 'image') {
+                if (selectedHandle === 'move') {
+                    selectedElement.x = x - offsetX;
+                    selectedElement.y = y - offsetY;
+                }
+                else if (selectedHandle === 'resize-tl') {
+                    const newWidth = selectedElement.width + (selectedElement.x - x);
+                    const newHeight = selectedElement.height + (selectedElement.y - y);
+                    if (newWidth > 10 && newHeight > 10) {
+                        selectedElement.width = newWidth;
+                        selectedElement.height = newHeight;
+                        selectedElement.x = x;
+                        selectedElement.y = y;
+                    }
+                }
+                else if (selectedHandle === 'resize-br') {
+                    const newWidth = x - selectedElement.x;
+                    const newHeight = y - selectedElement.y;
+                    if (newWidth > 10 && newHeight > 10) {
+                        selectedElement.width = newWidth;
+                        selectedElement.height = newHeight;
+                    }
+                }
+                else if (selectedHandle === 'rotate') {
+                    const centerX = selectedElement.x + selectedElement.width / 2;
+                    const centerY = selectedElement.y + selectedElement.height / 2;
+                    selectedElement.rotation = Math.atan2(y - centerY, x - centerX);
+                }
+            }
+            else if (selectedElement.type === 'arrow') {
+                if (selectedHandle === 'start') {
+                    selectedElement.x1 = x;
+                    selectedElement.y1 = y;
+                }
+                else if (selectedHandle === 'end') {
+                    selectedElement.x2 = x;
+                    selectedElement.y2 = y;
+                }
+                else if (selectedHandle === 'move') {
+                    selectedElement.x1 += dx;
+                    selectedElement.y1 += dy;
+                    selectedElement.x2 += dx;
+                    selectedElement.y2 += dy;
+                }
+                else if (selectedHandle === 'rotate') {
+                    const center = getArrowCenter(selectedElement);
+                    const angle = Math.atan2(y - center.y, x - center.x);
+                    const length = Math.sqrt(
+                        (selectedElement.x2 - selectedElement.x1) ** 2 +
+                        (selectedElement.y2 - selectedElement.y1) ** 2
+                    ) / 2;
+
+                    selectedElement.x1 = center.x - Math.cos(angle) * length;
+                    selectedElement.y1 = center.y - Math.sin(angle) * length;
+                    selectedElement.x2 = center.x + Math.cos(angle) * length;
+                    selectedElement.y2 = center.y + Math.sin(angle) * length;
+                }
+            }
+            else if (selectedElement.type === 'rect' || selectedElement.type === 'circle' || selectedElement.type === 'text') {
+                if (selectedHandle === 'move') {
+                    selectedElement.x = x - offsetX;
+                    selectedElement.y = y - offsetY;
+                }
+            }
+
+            offsetX = x;
+            offsetY = y;
+            redrawCanvas();
+        }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        const x = e.offsetX;
+        const y = e.offsetY;
+
+        if (mode === 'draw') {
+            if (currentPoints.length > 1) {
+                elements.push({ type: 'freehand', points: [...currentPoints], width: 2, color: 'black' });
+            }
+            currentPoints = [];
+            drawing = false;
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'pencil') {
+            if (currentPoints.length > 1) {
+                elements.push({ type: 'freehand', points: [...currentPoints], width: pencilWidth, color: pencilColor });
+            }
+            currentPoints = [];
+            drawing = false;
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'rect' && drawing) {
+            elements.push({ type: 'rect', x: startX, y: startY, w: x - startX, h: y - startY });
+            drawing = false;
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'circle' && drawing) {
+            const r = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+            elements.push({ type: 'circle', x: startX, y: startY, r });
+            drawing = false;
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'arrow' && drawing) {
+            elements.push({ type: 'arrow', x1: startX, y1: startY, x2: x, y2: y });
+            drawing = false;
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'select' && isSelecting) {
+            isSelecting = false;
+            selectionBox.style.display = 'none';
+
+            const left = Math.min(startX, x);
+            const top = Math.min(startY, y);
+            const right = Math.max(startX, x);
+            const bottom = Math.max(startY, y);
+
+            selectedElements = elements.filter(el => isElementInSelection(el, left, top, right, bottom));
+            redrawCanvas();
+            return;
+        }
+
+        if (mode === 'select' || mode === 'move') {
+            isDragging = false;
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        if (mode === 'draw') {
+            if (currentPoints.length > 1) {
+                elements.push({ type: 'freehand', points: [...currentPoints], width: 2, color: 'black' });
+                redrawCanvas();
+            }
+        }
+
+        if (mode === 'pencil') {
+            if (currentPoints.length > 1) {
+                elements.push({ type: 'freehand', points: [...currentPoints], width: pencilWidth, color: pencilColor });
+                redrawCanvas();
+            }
+        }
+
+        if (mode === 'select' && isSelecting) {
+            isSelecting = false;
+            selectionBox.style.display = 'none';
+        }
+
+        drawing = false;
+        isDragging = false;
+        currentPoints = [];
+    });
+
+    setMode('select');
+    redrawCanvas();
+</script>
+</body>
+</html>
