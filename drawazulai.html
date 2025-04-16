@@ -10,7 +10,7 @@
             [...tooltipTriggerList].map(el => new bootstrap.Tooltip(el));
         });
     </script>
-    <title>Mini Excalidraw com Paleta de Cores</title>
+    <title>DrawAzulai com Paleta de Cores</title>
     <style>
         body {
             margin: 0;
@@ -94,10 +94,10 @@
 <body>
 <div id="toolbar" class="p-2 bg-light border-bottom d-flex flex-wrap gap-2">
     <div class="btn-group flex-wrap" role="group">
-        <button class="btn btn-outline-primary btn-sm" onclick="setMode('select')" id="select-btn" data-bs-toggle="tooltip" title="Selecionar elementos no canvas">?? Selecionar</button>
-        <button class="btn btn-outline-primary btn-sm" onclick="setMode('move')" id="move-btn" data-bs-toggle="tooltip" title="Mover, redimensionar ou rotacionar elementos">??? Mover</button>
-        <button class="btn btn-outline-primary btn-sm" onclick="setMode('draw')" data-bs-toggle="tooltip" title="Desenhar linhas pretas com caneta simples">?? Desenhar</button>
-        <button class="btn btn-outline-primary btn-sm" onclick="setMode('pencil')" id="pencil-btn" data-bs-toggle="tooltip" title="Desenhar com l�pis colorido usando paleta">?? L�pis</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('select')" id="select-btn" data-bs-toggle="tooltip" title="Selecionar elementos no canvas">✏️ Selecionar</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('move')" id="move-btn" data-bs-toggle="tooltip" title="Mover, redimensionar ou rotacionar elementos">🖐️ Mover</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('draw')" data-bs-toggle="tooltip" title="Desenhar linhas pretas com caneta simples">✏️ Desenhar</button>
+        <button class="btn btn-outline-primary btn-sm" onclick="setMode('pencil')" id="pencil-btn" data-bs-toggle="tooltip" title="Desenhar com lápis colorido usando paleta">✍️ Lápis</button>
 
     </div>
 
@@ -114,19 +114,19 @@
     </div>
 
     <div class="btn-group flex-wrap ms-2" role="group">
-        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('rect')">? Ret�ngulo</button>
-        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('circle')">? C�rculo</button>
-        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('arrow')">?? Seta</button>
-        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('text')">?? Texto</button>
-        <button class="btn btn-outline-warning btn-sm" onclick="setMode('erase')">?? Borracha</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('rect')">⬛ Retângulo</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('circle')">⚪ Círculo</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('arrow')">➡️ Seta</button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="setMode('text')">🔤 Texto</button>
+        <button class="btn btn-outline-warning btn-sm" onclick="setMode('erase')">🧽 Borracha</button>
     </div>
 
     <div class="btn-group flex-wrap ms-2" role="group">
-        <button class="btn btn-outline-danger btn-sm" onclick="clearCanvas()">??? Limpar Tela</button>
-        <button class="btn btn-outline-success btn-sm" onclick="document.getElementById('imageInput').click()" data-bs-toggle="tooltip" title="Inserir imagem no canvas">??? Inserir Imagem</button>
+        <button class="btn btn-outline-danger btn-sm" onclick="clearCanvas()">🗑️ Limpar Tela</button>
+        <button class="btn btn-outline-success btn-sm" onclick="document.getElementById('imageInput').click()" data-bs-toggle="tooltip" title="Inserir imagem no canvas">🖼️ Inserir Imagem</button>
         <input type="file" id="imageInput" accept="image/png, image/jpeg" style="display:none" onchange="handleImageUpload(event)">
-        <button class="btn btn-outline-info btn-sm" onclick="exportCanvas()" data-bs-toggle="tooltip" title="Exportar desenho como imagem PNG">?? Exportar PNG</button>
-        <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()">? Excluir Selecionados</button>
+        <button class="btn btn-outline-info btn-sm" onclick="exportCanvas()" data-bs-toggle="tooltip" title="Exportar desenho como imagem PNG">📤 Exportar PNG</button>
+        <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()">❌ Excluir Selecionados</button>
 
 
     </div>
